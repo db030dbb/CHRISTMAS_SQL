@@ -25,3 +25,14 @@ ORDER BY measured_at;
 > 3. WHERE measured_at > '2022-11-31' AND measured_at < '2023-01-01'   
    
 ---
+
+# 3번 (2025.12.03)
+```
+SELECT species, body_mass_g
+FROM penguins
+where species IS NOT NULL AND body_mass_g IS NOT NULL
+ORDER BY body_mass_g DESC, species;
+```
+
+---
+
