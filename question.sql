@@ -75,9 +75,24 @@ ORDER BY stamp;
 
 /*
 * ==========================================================================================
-* | 6번 (2025.12.05) 
-* | 
-* | 
-* | 스탬프 개수 기준 오름차순으로 정렬하고 스탬프 개수, 영수증 개수만 출력해주세요.
+* | 6번 (2025.12.06) 
+* | 대여점의 활성 고객 중 대여 횟수가 35회 이상인 고객 ID 를 출력하는 쿼리를 작성하세요.
 * ===========================================================================================
 */
+SELECT customer_id
+FROM (
+  SELECT c.customer_id, count(rental_id) AS rental_cnt
+  FROM customer as c
+  LEFT JOIN rental as r ON c.customer_id = r.customer_id
+  WHERE active = true
+  GROUP BY c.customer_id )
+WHERE rental_cnt >= 35;
+
+# --- 더 쉬운 풀이 방법 ---
+# 서브 쿼리 없이 HAVING 이용하기
+SELECT c.customer_id
+FROM customer AS c
+LEFT JOIN rental AS r ON c.customer_id = r.customer_id
+WHERE c.active = true
+GROUP BY c.customer_id
+HAVING COUNT(rental_id) >= 35;
