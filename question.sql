@@ -158,3 +158,64 @@ FROM (
   WHERE e.event = 'Volleyball Women''s Volleyball' 
     AND t.team = 'KOR') AS new_table
 WHERE year - prev_year = 4
+
+
+  /*
+* ==========================================================================================
+* | 10번 (2025.12.12) 
+* | 한국 국가대표팀으로 여자 배구 종목에 참가한 선수 메달을 딴 선수의 id와 이름, 메달 종류를 출력하세요.
+* ===========================================================================================
+*/
+# 쉼표 추가해야할 땐 GROUP_CONCAT(컬럼명, ', ') 이용 ('쉼표+공백' 이어야함)
+# 중복 제거, 정렬도 하고 싶을 땐 GROUP_CONCAT(DISTINCT 컬럼명 ORDER BY 정렬 대상 SEPARATOR ', ') 이용 (SEPARATOR : 구분자를 지정 '쉼표+공백') -> MYSQL
+# GROUP_CONCAT(DISTINCT medal, ', ') -> SQLite
+SELECT ath.id, name, 
+      GROUP_CONCAT(DISTINCT medal ORDER BY medal SEPARATOR ', ') AS medals
+FROM athletes ath
+JOIN records r ON ath.id = athlete_id
+JOIN events e ON r.event_id = e.id
+JOIN teams t ON r.team_id = t.id
+WHERE event = 'Volleyball Women''s Volleyball' AND team = 'KOR'AND medal IS NOT NULL
+GROUP BY ath.id, name
+
+
+  /*
+* ==========================================================================================
+* | 11번 (2025.12.12) 
+* | 토/일요일의 경우 'weekend', 다른 요일의 경우 'weekday' 로 변환 후 
+* | 주중, 주말의 합계 매출 규모를 집계하는 쿼리를 작성해주세요. 
+* | week, sales 컬럼이 있어야하고 매출 합계 기준 내림차순으로 정렬하세요.
+* ===========================================================================================
+*/
+
+# day = 'Sat' OR day = 'Sun' THEN 'weekend' 이거 대신  WHEN day IN ('Sat', 'Sun') THEN 'weekend' 이것도 가능
+SELECT
+  CASE WHEN day = 'Sat' OR day = 'Sun' THEN 'weekend'
+    ELSE 'weekday' END AS week, SUM(total_bill) AS sales
+FROM tips
+GROUP BY week
+ORDER BY sales DESC
+
+  /*
+* ==========================================================================================
+* | 12번 (2025.12.12) 
+* | 게임 출시 연도 기준 2011년부터 2015년까지 각 장르의 점수 평균을 계산하는 쿼리를 작성해주세요.
+* | 평균 점수가 없는 게임은 계산에서 제외되어야하고 소수점 아래 셋째 자리에서 반올림 해주세요.
+* | 컬럼은 genere(장르 이름), score_2011(2011년 평균 점수), score_2012, score_2013, 
+* |       score_2014, score_2015 가 있어야 합니다.
+* ===========================================================================================
+*/
+WITH join_table AS (
+  SELECT gm.year, gr.name, gm.critic_score
+  FROM games gm
+  JOIN genres gr ON gm.genre_id = gr.genre_id
+  WHERE critic_score IS NOT NULL AND year BETWEEN 2011 AND 2015)
+
+SELECT name AS genre,
+  ROUND(AVG(CASE WHEN year = 2011 THEN critic_score END), 2) AS score_2011,
+  ROUND(AVG(CASE WHEN year = 2012 THEN critic_score END), 2) AS score_2012,
+  ROUND(AVG(CASE WHEN year = 2013 THEN critic_score END), 2) AS score_2013,
+  ROUND(AVG(CASE WHEN year = 2014 THEN critic_score END), 2) AS score_2014,
+  ROUND(AVG(CASE WHEN year = 2015 THEN critic_score END), 2) AS score_2015
+FROM join_table
+GROUP BY name
