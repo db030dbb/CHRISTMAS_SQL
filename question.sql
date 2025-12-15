@@ -219,3 +219,49 @@ SELECT name AS genre,
   ROUND(AVG(CASE WHEN year = 2015 THEN critic_score END), 2) AS score_2015
 FROM join_table
 GROUP BY name
+
+
+/*
+* ==============================================================================================
+* | 13번 (2025.12.15) 
+* | 배우별 대여 매출 합계를 계산하고, 그 중 상위 5명 배우의 이름, 성, 총매출을 출력하는 쿼리를 작성해주세요. 
+* ===============================================================================================
+*/
+SELECT first_name, last_name, SUM(amount) AS total_revenue
+FROM actor a
+LEFT JOIN film_actor f_a ON a.actor_id = f_a.actor_id
+LEFT JOIN film f ON f_a.film_id = f.film_id
+LEFT JOIN inventory i on f.film_id = i.film_id
+LEFT JOIN rental r on i.inventory_id = r.inventory_id
+LEFT JOIN payment p on r.rental_id = p.rental_id
+GROUP BY a.actor_id
+ORDER BY SUM(amount) DESC
+LIMIT 5
+
+/*
+* ===============================================================================================
+* | 14번 (2025.12.15) 
+* |  작품, 연도 상관 없이 2회 이상 등재 / 해당 작가 작품들의 평균 사용자 평점이 4.5점 이상 
+* |  / 해당 작가 작품들의 평균 리뷰 수가 소설 분야 작품들의 평균 리뷰 수 이상인 소설 작가 이름을 출력해주세요.
+* ================================================================================================
+*/
+SELECT author
+FROM books
+WHERE genre = 'Fiction'
+group by author
+HAVING count(*) >= 2 AND AVG(user_rating) >= 4.5 AND AVG(reviews) >= (SELECT AVG(reviews) FROM books WHERE genre = 'Fiction' )
+ORDER BY author
+
+
+/*
+* ===============================================================================================
+* | 15번 (2025.12.15) 
+* |  작품 중 한국 감독의 영화를 찾아, 감독 이름과 작품명을 출력하는 쿼리를 작성해주세요. 
+* ================================================================================================
+*/
+# --- 정확한 문자열 외 문자열 포함 찾을땐 = 가 아니라 LIKE ---
+SELECT name AS artist, title
+FROM artworks w
+JOIN artworks_artists aa on w.artwork_id = aa.artwork_id
+JOIN artists t ON aa.artist_id = t.artist_id
+WHERE classification LIKE 'Film%' AND nationality = 'Korean'
