@@ -265,3 +265,152 @@ FROM artworks w
 JOIN artworks_artists aa on w.artwork_id = aa.artwork_id
 JOIN artists t ON aa.artist_id = t.artist_id
 WHERE classification LIKE 'Film%' AND nationality = 'Korean'
+
+
+/*
+* =====================================================================================================
+* | 16번 (2025.12.23) 
+* | 친구 관계인 두 사용자 ID의 합이 적은 순으로 상위 0.1%에 들어오는 모든 친구 관계를 출력하는 쿼리를 작성해주세요. 
+* | 상위 % = 해당 친구 관계의 순위 / 전체 친구 관계의 수
+* | 만약, 상위 0.1%의 경계 부분에서 id_sum 값이 같은 게 여러개 있는 경우 다 포함합니다.
+* ======================================================================================================
+*/
+SELECT user_a_id, user_b_id, id_sum
+FROM (SELECT RANK()OVER(ORDER BY (user_a_id + user_b_id)) AS rnk, Count(*) over() AS total_cnt,
+      (user_a_id + user_b_id) AS id_sum, user_a_id, user_b_id FROM edges)
+WHERE rnk *100.0 / total_cnt <= 0.1
+
+
+/*
+* =====================================================================================================
+* | 17번 (2025.12.23) 
+* | 모든 카테고리와 서브 카테고리의 조합에 대해 각 사용자의 첫 구매로 주문된 건수를 집계하고
+* | 많은 순서대로 내림차순 정렬하는 쿼리를 작성해주세요. 
+* ======================================================================================================
+*/
+SELECT category, sub_category, COUNT(DISTINCT c_s.customer_id) AS cnt_orders
+FROM customer_stats c_s
+JOIN records r ON r.customer_id = c_s.customer_id
+WHERE order_date = first_order_date
+GROUP BY category, sub_category
+ORDER BY cnt_orders DESC
+
+
+/*
+* =====================================================================================================
+* | 18번 (2025.12.23) 
+* | - 친구 수가 100명 이상
+* | - 친구들의 친구 수의 합계(a)와 친구 수(b) 비율(a/b)가 높은 순으로 user_id 5명 선정
+* | - 친구들의 친구 수 합계 계산에는 중복된 친구와 해당 user_id도 모두 포함
+* | - 비율은 소수점 아래 셋째 자리에서 반올림하고 내림차순으로 정렬되어있어야합니다.
+* | 위의 조건을 만족하는 쿼리를 작성해주세요. (self-join은 계산량이 많아 수행이 불가능합니다.)
+* ======================================================================================================
+*/
+WITH all_links AS (
+    -- A-B 관계를 A->B, B->A 로 변경 (모든 친구 관계 데이터 합침)
+    SELECT user_a_id AS u1, user_b_id AS u2 FROM edges
+    UNION ALL
+    SELECT user_b_id AS u1, user_a_id AS u2 FROM edges
+),
+friend_counts AS (
+    -- 각 유저별 친구 수 계산 (u1의 친구 수 계산)
+    SELECT u1 AS user_id, COUNT(*) AS cnt
+    FROM all_links
+    GROUP BY u1
+)
+
+SELECT 
+    c.user_id, -- u1
+    c.cnt AS friends, -- u1의 친구 수(u2 의 수)
+    SUM(f.cnt) AS friends_of_friends, -- u2의 친구 수 합계
+    ROUND(SUM(f.cnt) * 1.0 / c.cnt, 2) AS ratio
+FROM friend_counts c
+JOIN all_links l ON c.user_id = l.u1     -- u1의 친구들(u2)을 찾기 위해 조인
+JOIN friend_counts f ON l.u2 = f.user_id -- u2의 친구 수를 가져오기 위해 조인 (f 테이블)
+WHERE c.cnt >= 100                       -- 친구 수가 100명 이상인 후보만 필터링
+GROUP BY c.user_id, c.cnt
+ORDER BY ratio DESC, c.user_id ASC         -- 비율 내림차순 (동일 비율 대비 id 정렬 추가)
+LIMIT 5;
+
+
+/*
+* =====================================================================================================
+* | 19번 (2025.12.29) 
+* | 연도별 순매출을 조회하는 쿼리를 작성해주세요.  
+* | 순매출은 반품되지 않은 거래 내역에 대해 주문 금액에서 할인 금액을 제외한 실제 결제 금액의 합을 의미합니다.
+* ======================================================================================================
+*/
+-- strftime() 까먹지 말기, 'Y%'가 아니라 '%Y' 
+SELECT strftime('%Y', purchased_at) AS year, SUM(total_price - discount_amount) AS net_sales
+FROM transactions
+WHERE is_returned = false
+GROUP BY strftime('%Y', purchased_at)
+
+
+/*
+* =====================================================================================================
+* | 20번 (2025.12.29) 
+* | 현재 배송 옵션은 일반 배송(Standard), 빠른 배송(Express), 익일 특급(Overnight) 세 종류 입니다. 
+* | 반품이 발생할 경우, 반품 회수를 위해 '일반 배송(Standard)' 서비스가 추가로 1회 이용됩니다. 
+* | 배송 업체 이용 건수를 배송 옵션 별로 집계하는 쿼리를 작성해주세요. 
+* | (year, standard, express, overnight 이 열로 있어야함.)
+* ======================================================================================================
+*/
+-- SUM 대신 COUNT도 사용 가능, is_returned = true 에서 '=true'를 생략 가능
+SELECT strftime('%Y', purchased_at) AS year,
+      SUM(CASE WHEN shipping_method = 'Standard' then 1 ELSE 0 END) + SUM(CASE WHEN is_returned = true then 1 ELSE 0 END) AS standard,
+      SUM(CASE WHEN shipping_method = 'Express' then 1 ELSE 0 END) AS express,
+      SUM(CASE WHEN shipping_method = 'Overnight' then 1 ELSE 0 END) AS overnight
+FROM transactions
+WHERE is_online_order = true
+GROUP BY strftime('%Y', purchased_at)
+
+
+/*
+* =====================================================================================================
+* | 20번 (2025.12.29) 
+* | 고객ID가 10으로 나눈 나머지가 0인 사용자를 그룹 A, 나머지 사용자를 그룹 B에 배정한 쿼리를 작성해주세요.
+* | customer_id, bucket(할당된 사용자 그룹 -> A,B)이 열로 들어가있어야합니다.
+* ======================================================================================================
+*/
+SELECT customer_id, (CASE WHEN customer_id % 10 = 0 THEN 'A' ELSE 'B' END) AS bucket
+FROM transactions
+GROUP BY customer_id
+
+
+/*
+* =====================================================================================================
+* | 21번 (2025.12.29) 
+* | 2023년 11월, 12월 온라인 주문에 대하여 order_date(주문일), weekday(요일)(Sunday, Monday 등),
+* | num_orders_today(주문일 당일의 주문 건수), 
+* | num_orders_from_yesterday(주문일 하루 이전 날짜부터 주문일 당일까지 연속된 이틀간의 합계 주문 건수의 합)
+* | 을 구하시오.
+* ======================================================================================================
+*/
+-- 더 간단한 방법 
+---> strftime('%A') 쓰기 : Sunday, Monday 로 나옴 / %a : Sun, Mon 등 약어로 나옴 
+---> Between 말고 IN ('2023-11', '2023-12') 도 가능
+WITH daily_counts AS (
+  SELECT 
+    date(purchased_at) AS order_date,
+    COUNT(transaction_id) AS num_orders
+  FROM transactions
+  WHERE is_online_order = true AND date(purchased_at) BETWEEN '2023-11-01' AND '2023-12-31'
+  GROUP BY date(purchased_at)
+)
+
+SELECT 
+  order_date,
+  CASE CAST(strftime('%w', order_date) AS INTEGER)
+    WHEN 0 THEN 'Sunday'
+    WHEN 1 THEN 'Monday'
+    WHEN 2 THEN 'Tuesday'
+    WHEN 3 THEN 'Wednesday'
+    WHEN 4 THEN 'Thursday'
+    WHEN 5 THEN 'Friday'
+    WHEN 6 THEN 'Saturday'
+  END AS weekday,
+  num_orders AS num_orders_today,
+  SUM(num_orders) OVER (ORDER BY order_date ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS num_orders_from_yesterday
+FROM daily_counts
+ORDER BY order_date
